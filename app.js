@@ -4,7 +4,6 @@ const cookieParser = require('cookie-parser');
 const logger = require('morgan');
 const cors = require('cors');
 require('./configs/mongoose-config');
-require('./configs/passport-config');
 
 const apiRouter = require('./routes/api');
 

@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 
-const twitchRouter = require('./twitch');
-
-router.use('/twitch', twitchRouter);
+router.use('/:streamerName', (req, res)=>{
+  res.send(`NOT IMPLEMENTED: api/${req.params.streamerName} Route`);
+});
 
 module.exports = router;
