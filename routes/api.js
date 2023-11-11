@@ -2,6 +2,7 @@ const { default: axios } = require('axios');
 const express = require('express');
 const router = express.Router();
 const Stream = require('../models/stream');
+const Token = require('../models/token');
 const dayjs = require('dayjs');
 
 function formatData(streamData, userLogin){
@@ -29,9 +30,19 @@ function formatData(streamData, userLogin){
 
 async function getAppAccessToken(){
   try{
-    const response = await axios.post(`https://id.twitch.tv/oauth2/token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`);
-    return response.data.access_token;
-    
+    const foundToken= await Token.findOne({ tokenLookup:'appAccessToken' }).exec();
+    if(!foundToken || dayjs(foundToken.expirationDate).diff(dayjs(),'days'<10)){
+      const response = await axios.post(`https://id.twitch.tv/oauth2/token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`);
+      const newToken = await Token.findOneAndUpdate(
+        { tokenLookup:'appAccessToken' }, 
+        { appAccessToken:response.data.access_token, 
+          expirationDate:response.data.expires_in }, 
+        { upsert: true, new:true});
+
+      return newToken.appAccessToken;
+    }else{
+      return foundToken.appAccessToken;
+    }
   }catch(err){
     res.status(500).send(err);
   }
@@ -46,16 +57,17 @@ async function getNewStreamData(userLogin, getAppAccessToken){
         'Authorization': `Bearer ${appAccessToken}`
       }
     });
+    return streamData;
   }catch(err){
     res.status(500).send(err);
   }
 }
 
 async function getStreamerInfo(userLogin) {
+  const streamData = getNewStreamData(userLogin, getAppAccessToken);
   const extractedData = formatData(streamData, userLogin);
   return extractedData;
-}/*Format the shape of the returned data as per the DB*/
-    /* Is the 'thumbnailUrl' auto generated? Yes*/
+}
 
 router.use('/:streamerName', async (req, res)=>{
   const streamerName = req.params.streamerName;
