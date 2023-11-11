@@ -32,11 +32,11 @@ async function getAppAccessToken(){
   try{
     const foundToken= await Token.findOne({ tokenLookup:'appAccessToken' }).exec();
     if(!foundToken || dayjs(foundToken.expirationDate).diff(dayjs(),'days'<10)){
-      const response = await axios.post(`https://id.twitch.tv/oauth2/token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`);
+      const response = await axios.post(`https://id.twitch.tv/oauth2/token?client_id=${process.env.CLIENT_ID}&client_secret=${process.env.CLIENT_SECRET}&grant_type=client_credentials`);
       const newToken = await Token.findOneAndUpdate(
         { tokenLookup:'appAccessToken' }, 
         { appAccessToken:response.data.access_token, 
-          expirationDate:response.data.expires_in }, 
+          expirationDate:dayjs().add(response.data.expires_in,'second').toDate() }, 
         { upsert: true, new:true});
 
       return newToken.appAccessToken;
@@ -44,7 +44,7 @@ async function getAppAccessToken(){
       return foundToken.appAccessToken;
     }
   }catch(err){
-    res.status(500).send(err);
+    throw new Error(err);
   }
 }
 
@@ -55,7 +55,7 @@ async function getStreamInfo(streamerName) {
       const appAccessToken = await getAppAccessToken();
       const streamData= await axios.get(`https://api.twitch.tv/helix/streams?user_login=${streamerName}`, {
         headers: {
-          'Client-ID': clientId,
+          'Client-ID': process.env.CLIENT_ID,
           'Authorization': `Bearer ${appAccessToken}`
         }
       });
@@ -69,14 +69,18 @@ async function getStreamInfo(streamerName) {
       return foundStream;
     }
   }catch(err){
-    return res.status(200).json({ err });
+    throw new Error(err);
   }
 }
 
-router.use('/:streamerName', (req, res)=>{
+router.use('/:streamerName', async (req, res)=>{
   const streamerName = req.params.streamerName;
-  const streamData = getStreamInfo(streamerName);
-  return res.status(200).json({ streamData });
+  try{
+    const streamData = await getStreamInfo(streamerName);
+    return res.status(200).json({ streamData });
+  }catch(err){
+    return res.status(500).json({ err });
+  }
 });
 
 module.exports = router;
