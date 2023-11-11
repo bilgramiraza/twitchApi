@@ -5,15 +5,15 @@ const Stream = require('../models/stream');
 const Token = require('../models/token');
 const dayjs = require('dayjs');
 
-function formatData(streamData, userLogin){
+function formatApiData(streamData, userLogin){
+  const uncleanData = streamData.data.data[0];
   let extractedData;
-  if(typeof streamData === "undefined"){
+  if(typeof uncleanData === "undefined"){
     extractedData = {
       userName: userLogin,
       isLive: false,
     };
   }else{
-    const uncleanData = streamData.data.data[0];
     extractedData = {
       userName: uncleanData.user_name,
       isLive: true,
@@ -26,6 +26,30 @@ function formatData(streamData, userLogin){
     };
   }
   return extractedData;
+}
+
+function formatData(dbData, streamerName){
+  let formattedData;
+  if(dbData.isLive){
+    formattedData = {
+      userName: dbData.user_name,
+      isLive: true,
+      streamTitle: dbData.title,
+      game: dbData.game_name,
+      viewerCount: dbData.viewer_count,
+      startedAt: dbData.started_at,
+      latestThumbnail: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${dbData.user_login}-1920x1080.jpg`,
+      tags: dbData.tags,
+      lastUpdated: dbData.updatedAt,
+    };
+  }else{
+    formattedData = {
+      userName: streamerName,
+      isLive: false,
+      lastUpdated: dbData.updatedAt,
+    };
+  }
+  return formattedData;
 }
 
 async function getAppAccessToken(){
@@ -44,6 +68,7 @@ async function getAppAccessToken(){
       return foundToken.appAccessToken;
     }
   }catch(err){
+    console.log(err);
     throw new Error(err);
   }
 }
@@ -59,16 +84,17 @@ async function getStreamInfo(streamerName) {
           'Authorization': `Bearer ${appAccessToken}`
         }
       });
-      const newStreamData = formatData(streamData, streamerName);
+      const newStreamData = formatApiData(streamData, streamerName);
       const updatedData = await Stream.findOneAndUpdate(
         { userName:streamerName }, 
         newStreamData, 
         { upsert:true, new:true});
-      return updatedData;
+      return formatData(updatedData, streamerName);
     }else{
-      return foundStream;
+      return formatData(foundStream, streamerName);
     }
   }catch(err){
+    console.log(err);
     throw new Error(err);
   }
 }
