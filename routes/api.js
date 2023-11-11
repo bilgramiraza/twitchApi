@@ -48,41 +48,35 @@ async function getAppAccessToken(){
   }
 }
 
-async function getNewStreamData(userLogin, getAppAccessToken){
-  try{
-    const appAccessToken = getAppAccessToken();
-    const streamData= await axios.get(`https://api.twitch.tv/helix/streams?user_login=${userLogin}`, {
-      headers: {
-        'Client-ID': clientId,
-        'Authorization': `Bearer ${appAccessToken}`
-      }
-    });
-    return streamData;
-  }catch(err){
-    res.status(500).send(err);
-  }
-}
-
-async function getStreamerInfo(userLogin) {
-  const streamData = getNewStreamData(userLogin, getAppAccessToken);
-  const extractedData = formatData(streamData, userLogin);
-  return extractedData;
-}
-
-router.use('/:streamerName', async (req, res)=>{
-  const streamerName = req.params.streamerName;
+async function getStreamInfo(streamerName) {
   try{
     const foundStream = await Stream.findOne({ userName:streamerName }).exec();
     if(!foundStream || (dayjs().diff(dayjs(foundStream?.updatedAt),'minute') >=5)){
-      const newStreamData = await getStreamerInfo(streamerName); 
-      const updatedData = await Stream.findOneAndUpdate({ userName:streamerName }, newStreamData, { upsert:true, new:true});
-      return res.status(200).json({ updatedData });
+      const appAccessToken = await getAppAccessToken();
+      const streamData= await axios.get(`https://api.twitch.tv/helix/streams?user_login=${streamerName}`, {
+        headers: {
+          'Client-ID': clientId,
+          'Authorization': `Bearer ${appAccessToken}`
+        }
+      });
+      const newStreamData = formatData(streamData, streamerName);
+      const updatedData = await Stream.findOneAndUpdate(
+        { userName:streamerName }, 
+        newStreamData, 
+        { upsert:true, new:true});
+      return updatedData;
     }else{
-      return res.status(200).json({ foundStream });
+      return foundStream;
     }
   }catch(err){
-    return res.status(500).send(err);
+    return res.status(200).json({ err });
   }
+}
+
+router.use('/:streamerName', (req, res)=>{
+  const streamerName = req.params.streamerName;
+  const streamData = getStreamInfo(streamerName);
+  return res.status(200).json({ streamData });
 });
 
 module.exports = router;
