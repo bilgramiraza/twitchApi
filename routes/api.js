@@ -68,7 +68,6 @@ async function getAppAccessToken(){
       return foundToken.appAccessToken;
     }
   }catch(err){
-    console.log(err);
     throw new Error(err);
   }
 }
@@ -94,7 +93,6 @@ async function getStreamInfo(streamerName) {
       return formatData(foundStream, streamerName);
     }
   }catch(err){
-    console.log(err);
     throw new Error(err);
   }
 }
