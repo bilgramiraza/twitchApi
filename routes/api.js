@@ -60,7 +60,7 @@ async function getAppAccessToken(){
       const newToken = await Token.findOneAndUpdate(
         { tokenLookup:'appAccessToken' }, 
         { appAccessToken:response.data.access_token, 
-          expirationDate:dayjs().add(response.data.expires_in,'second').toDate() }, 
+          expirationDate:response.data.expires_in}, 
         { upsert: true, new:true});
 
       return newToken.appAccessToken;
@@ -75,7 +75,7 @@ async function getAppAccessToken(){
 async function getStreamInfo(streamerName) {
   try{
     const foundStream = await Stream.findOne({ userName:streamerName }).exec();
-    if(!foundStream || (dayjs().diff(dayjs(foundStream?.updatedAt),'minute') >=5)){
+    if(!foundStream || (dayjs().diff(dayjs(foundStream.updatedAt),'minute') >=5)){
       const appAccessToken = await getAppAccessToken();
       const streamData= await axios.get(`https://api.twitch.tv/helix/streams?user_login=${streamerName}`, {
         headers: {
