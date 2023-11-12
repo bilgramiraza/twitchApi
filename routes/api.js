@@ -32,13 +32,13 @@ function formatData(dbData, streamerName){
   let formattedData;
   if(dbData.isLive){
     formattedData = {
-      userName: dbData.user_name,
+      userName: dbData.userName,
       isLive: true,
-      streamTitle: dbData.title,
-      game: dbData.game_name,
-      viewerCount: dbData.viewer_count,
-      startedAt: dbData.started_at,
-      latestThumbnail: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${dbData.user_login}-1920x1080.jpg`,
+      streamTitle: dbData.streamTitle,
+      game: dbData.game,
+      viewerCount: dbData.viewerCount,
+      startedAt: dbData.startedAt,
+      latestThumbnail: dbData.latestThumbnail,
       tags: dbData.tags,
       lastUpdated: dbData.updatedAt,
     };
