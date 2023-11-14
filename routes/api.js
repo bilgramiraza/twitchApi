@@ -34,15 +34,26 @@ function formatApiData(streamData, userLogin){
   return extractedData;
 }
 
-async function getAppAccessToken(){
+async function fetchNewAppAccessToken(){
+  try{
+    const response = await axios.post(`https://id.twitch.tv/oauth2/token?client_id=${process.env.CLIENT_ID}&client_secret=${process.env.CLIENT_SECRET}&grant_type=client_credentials`);
+    return response.data;
+  }catch(err){
+    switch(err.response.status){
+      case 429: throw { status:429, message:'Too Many Requests' };
+      default: throw { status:500, message:'Unexpected Server Error' };
+  }
+}
+
+async function getAppAccessToken(force = false){
   try{
     const foundToken= await Token.findOne({ tokenLookup:'appAccessToken' }).lean().exec();
-    if(!foundToken || dayjs(foundToken.expirationDate).diff(dayjs(),'days'<10)){
-      const response = await axios.post(`https://id.twitch.tv/oauth2/token?client_id=${process.env.CLIENT_ID}&client_secret=${process.env.CLIENT_SECRET}&grant_type=client_credentials`);
+    if(!foundToken || dayjs(foundToken.expirationDate).diff(dayjs(),'days')<10 || force){
+      const data = await fetchNewAppAccessToken();
       const newToken = await Token.findOneAndUpdate(
         { tokenLookup:'appAccessToken' }, 
-        { appAccessToken:response.data.access_token, 
-          expirationDate:response.data.expires_in}, 
+        { appAccessToken:data.access_token, 
+          expirationDate:data.expires_in}, 
         { upsert: true, new:true});
 
       return newToken.appAccessToken;
@@ -50,7 +61,33 @@ async function getAppAccessToken(){
       return foundToken.appAccessToken;
     }
   }catch(err){
-    throw new Error(err);
+    throw err;
+  }
+}
+
+async function fetchStreamData(streamerName, retry=false){
+  try{
+    const appAccessToken = await getAppAccessToken(retry);
+    const streamData= await axios.get(`https://api.twitch.tv/helix/streams?user_login=${streamerName}`, {
+      headers: {
+        'Client-ID': process.env.CLIENT_ID,
+        'Authorization': `Bearer ${appAccessToken}`
+      }
+    });
+    return formatApiData(streamData, streamerName);
+  }catch(err){
+    switch(err.response.status){
+      case 400: throw { status:400, message:'Invalid Streamer Username' };
+      case 401:
+        if(!retry){
+          const streamData = await fetchStreamData(streamerName, true);
+          return formatApiData(streamData, streamerName);
+        }else{
+          throw { status:500, message: 'Unexpected Server Error'};
+        }
+      case 429: throw { status:429, message:'Too Many Requests' };
+      default: throw { status:500, message:'Unexpected Error' };
+    }
   }
 }
 
@@ -62,14 +99,7 @@ async function getStreamInfo(streamerName) {
       .lean()
       .exec();
     if(!foundStream || (dayjs().diff(dayjs(foundStream.updatedAt),'minute') >=5)){
-      const appAccessToken = await getAppAccessToken();
-      const streamData= await axios.get(`https://api.twitch.tv/helix/streams?user_login=${streamerName}`, {
-        headers: {
-          'Client-ID': process.env.CLIENT_ID,
-          'Authorization': `Bearer ${appAccessToken}`
-        }
-      });
-      const newStreamData = formatApiData(streamData, streamerName);
+      const newStreamData = await fetchStreamData(streamerName);
       const updatedData = await Stream.findOneAndUpdate(
         { userName:streamerName }, 
         newStreamData, 
@@ -89,7 +119,7 @@ async function getStreamInfo(streamerName) {
       return foundStream;
     }
   }catch(err){
-    throw new Error(err);
+    throw err;
   }
 }
 
