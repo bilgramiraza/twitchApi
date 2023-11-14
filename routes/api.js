@@ -36,7 +36,7 @@ function formatApiData(streamData, userLogin){
 
 async function getAppAccessToken(){
   try{
-    const foundToken= await Token.findOne({ tokenLookup:'appAccessToken' }).exec();
+    const foundToken= await Token.findOne({ tokenLookup:'appAccessToken' }).lean().exec();
     if(!foundToken || dayjs(foundToken.expirationDate).diff(dayjs(),'days'<10)){
       const response = await axios.post(`https://id.twitch.tv/oauth2/token?client_id=${process.env.CLIENT_ID}&client_secret=${process.env.CLIENT_SECRET}&grant_type=client_credentials`);
       const newToken = await Token.findOneAndUpdate(
