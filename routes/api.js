@@ -12,6 +12,12 @@ function formatApiData(streamData, userLogin){
     extractedData = {
       userName: userLogin,
       isLive: false,
+      streamTitle: null,
+      game: null,
+      viewerCount: null,
+      startedAt: null,
+      latestThumbnail: null,
+      tags: null,
     };
   }else{
     extractedData = {
@@ -26,30 +32,6 @@ function formatApiData(streamData, userLogin){
     };
   }
   return extractedData;
-}
-
-function formatData(dbData, streamerName){
-  let formattedData;
-  if(dbData.isLive){
-    formattedData = {
-      userName: dbData.userName,
-      isLive: true,
-      streamTitle: dbData.streamTitle,
-      game: dbData.game,
-      viewerCount: dbData.viewerCount,
-      startedAt: dbData.startedAt,
-      latestThumbnail: dbData.latestThumbnail,
-      tags: dbData.tags,
-      lastUpdated: dbData.updatedAt,
-    };
-  }else{
-    formattedData = {
-      userName: streamerName,
-      isLive: false,
-      lastUpdated: dbData.updatedAt,
-    };
-  }
-  return formattedData;
 }
 
 async function getAppAccessToken(){
@@ -74,7 +56,11 @@ async function getAppAccessToken(){
 
 async function getStreamInfo(streamerName) {
   try{
-    const foundStream = await Stream.findOne({ userName:streamerName }).exec();
+    const foundStream = await Stream.findOne(
+      { userName:streamerName },
+      'userName isLive streamTitle game viewerCount startedAt latestThumbnail tags updatedAt -_id')
+      .lean()
+      .exec();
     if(!foundStream || (dayjs().diff(dayjs(foundStream.updatedAt),'minute') >=5)){
       const appAccessToken = await getAppAccessToken();
       const streamData= await axios.get(`https://api.twitch.tv/helix/streams?user_login=${streamerName}`, {
@@ -88,9 +74,19 @@ async function getStreamInfo(streamerName) {
         { userName:streamerName }, 
         newStreamData, 
         { upsert:true, new:true});
-      return formatData(updatedData, streamerName);
+      return {
+        userName: updatedData.userName,
+        isLive: updatedData.isLive,
+        streamTitle: updatedData.streamTitle,
+        game: updatedData.game,
+        viewerCount: updatedData.viewerCount,
+        startedAt: updatedData.startedAt,
+        latestThumbnail: updatedData.latestThumbnail,
+        tags: updatedData.tags,
+        updatedAt: updatedData.updatedAt,
+      };
     }else{
-      return formatData(foundStream, streamerName);
+      return foundStream;
     }
   }catch(err){
     throw new Error(err);
